@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -67,6 +68,15 @@ func handlePostUrl(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Print("newURl:", newUrl)
+
+	collection := Client.Database("testdb").Collection("urlCollection")
+
+	_, err = collection.InsertOne(context.Background(), newUrl)
+	if err != nil {
+		fmt.Println(err)
+		http.Error(w, "Failed to shorten URL", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"short_url": "http://localhost:8080/" + shortCode})
