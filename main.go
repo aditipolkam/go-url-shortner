@@ -1,126 +1,73 @@
 package main
+
 import (
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
-	"sync"
-	"io"
+	"time"
+
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type Post struct {
-	ID int `json:"id"`
-	Body string `json:"body"`
+type URLMapping struct {
+	ID          string    `json:"id"`
+	OriginalUrl string    `json:"original_url"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
-var (
-	posts = make(map[int]Post)
-	nextId = 1
-	postsMu sync.Mutex
-)
+const shortCodeLength int = 6
 
+var db *mongo.Collection
 
 func main() {
-    connectToDb();
-	http.HandleFunc("/posts", postsHandler)
-	http.HandleFunc("/posts/", postHandler)
+	connectToDb()
+	http.HandleFunc("/", shortenUrlHandler)
 	fmt.Println("Server is running at localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-func postsHandler(w http.ResponseWriter, r *http.Request){
+func shortenUrlHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
-		handleGetPosts(w, r)
+		handleGetUrl(w, r)
 	case "POST":
-		handlePostPosts(w, r)
-	default: 
+		handlePostUrl(w, r)
+	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
-func postHandler(w http.ResponseWriter, r *http.Request){
-	id, err := strconv.Atoi(r.URL.Path[len("/posts/"):])
+func handleGetUrl(w http.ResponseWriter, r *http.Request) {
+	// shortCode := r.URL.Path[1:]
+	// var result URLMapping
+
+}
+
+func handlePostUrl(w http.ResponseWriter, r *http.Request) {
+	//define a valid body param structure
+	var body struct {
+		URL string `json:"url"`
+	}
+
+	//validate json body
+	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		http.Error(w, "Invalid post id", http.StatusBadRequest)
+		http.Error(w, "Invalid Request Body", http.StatusBadRequest)
 		return
 	}
-	switch r.Method {
-    case "GET":
-        handleGetPost(w, r, id)
-    case "DELETE":
-        handleDeletePost(w, r, id)
-    default:
-        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-    }
 
-}
+	//generate short code for url
+	shortCode := generateShortCode(shortCodeLength)
 
-func handleGetPosts(w http.ResponseWriter, r *http.Request) {
-	postsMu.Lock()
-	defer postsMu.Unlock()
-	ps:= make([]Post, 0, len(posts))
-	for _, p:= range posts {
-		ps = append(ps, p)
+	newUrl := URLMapping{
+		ID:          shortCode,
+		OriginalUrl: body.URL,
+		CreatedAt:   time.Now(),
 	}
+
+	fmt.Print("newURl:", newUrl)
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ps)
-}
-
-func handlePostPosts(w http.ResponseWriter, r *http.Request) {
-	var p Post
-    body, err := io.ReadAll(r.Body)
-    if err != nil {
-        http.Error(w, "Error reading request body", http.StatusInternalServerError)
-        return
-    }
-	if err := json.Unmarshal(body, &p); err != nil {
-        http.Error(w, "Error parsing request body", http.StatusBadRequest)
-        return
-    }
-    postsMu.Lock()
-    defer postsMu.Unlock()
-
-	postsMu.Lock()
-    defer postsMu.Unlock()
-
-    p.ID = nextId
-    nextId++
-    posts[p.ID] = p
-
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(http.StatusCreated)
-    json.NewEncoder(w).Encode(p)
-}
-
-func handleGetPost(w http.ResponseWriter, r *http.Request, id int) {
-    postsMu.Lock()
-    defer postsMu.Unlock()
-
-    p, ok := posts[id]
-    if !ok {
-        http.Error(w, "Post not found", http.StatusNotFound)
-        return
-    }
-
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(p)
-}
-
-func handleDeletePost(w http.ResponseWriter, r *http.Request, id int) {
-    postsMu.Lock()
-    defer postsMu.Unlock()
-
-    // If you use a two-value assignment for accessing a
-    // value on a map, you get the value first then an
-    // "exists" variable.
-    _, ok := posts[id]
-    if !ok {
-        http.Error(w, "Post not found", http.StatusNotFound)
-        return
-    }
-
-    delete(posts, id)
-    w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"short_url": "http://localhost:8080/" + shortCode})
 }
