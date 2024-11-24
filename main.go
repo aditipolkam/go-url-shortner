@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 type URLMapping struct {
@@ -18,8 +18,6 @@ type URLMapping struct {
 }
 
 const shortCodeLength int = 6
-
-var db *mongo.Collection
 
 func main() {
 	connectToDb()
@@ -40,8 +38,19 @@ func shortenUrlHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleGetUrl(w http.ResponseWriter, r *http.Request) {
-	// shortCode := r.URL.Path[1:]
-	// var result URLMapping
+	shortCode := r.URL.Path[1:]
+	var result URLMapping
+
+	collection := Client.Database("testdb").Collection("urlCollection")
+
+	err := collection.FindOne(context.Background(), bson.M{"id": shortCode}).Decode(&result)
+	if err != nil {
+		http.Error(w, "URL not found", http.StatusNotFound)
+		return
+	}
+
+	// Redirect to the original URL
+	http.Redirect(w, r, result.OriginalUrl, http.StatusFound)
 
 }
 
