@@ -24,7 +24,7 @@ func main() {
 
 	// Create HTTP server
 	server := &http.Server{
-		Addr:         ":8080",
+		Addr:         cfg.ServerAddress,
 		Handler:      router,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
